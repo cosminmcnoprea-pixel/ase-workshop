@@ -1,0 +1,15 @@
+{
+  "name": "notification-service",
+  "version": "1.0.0",
+  "description": "Notification microservice for DevTask Hub",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "cors": "^2.8.5"
+  }
+}
