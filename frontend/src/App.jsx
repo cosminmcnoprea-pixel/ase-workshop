@@ -12,6 +12,7 @@ function App() {
   const [showNotifs, setShowNotifs] = useState(false);
   const [health, setHealth] = useState({ tasks: false, notifications: false });
   const [form, setForm] = useState({ title: "", description: "", priority: "medium" });
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -93,14 +94,26 @@ function App() {
   };
 
   const deleteTask = async (task) => {
-    try {
-      await fetch(`${TASK_API}/tasks/${task.id}`, { method: "DELETE" });
-      fetchTasks();
-      sendNotification(`Task "${task.title}" deleted`, "warning", task.id);
-    } catch {}
+    if (window.confirm(`Are you sure you want to delete "${task.title}"?`)) {
+      try {
+        await fetch(`${TASK_API}/tasks/${task.id}`, { method: "DELETE" });
+        fetchTasks();
+        sendNotification(`Task "${task.title}" deleted`, "warning", task.id);
+      } catch {}
+    }
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const filteredTasks = tasks.filter((task) => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      task.title.toLowerCase().includes(searchLower) ||
+      (task.description && task.description.toLowerCase().includes(searchLower)) ||
+      task.priority.toLowerCase().includes(searchLower) ||
+      task.status.toLowerCase().includes(searchLower)
+    );
+  });
 
   const styles = {
     app: { fontFamily: "'Segoe UI', system-ui, sans-serif", minHeight: "100vh", background: "#f1f5f9", margin: 0 },
@@ -198,10 +211,25 @@ function App() {
           </div>
         </form>
 
-        {tasks.length === 0 ? (
-          <div style={styles.empty}>No tasks yet. Create one above!</div>
+        {/* Search Bar */}
+        <div style={styles.form}>
+          <div style={styles.formTitle}>Search Tasks</div>
+          <div style={styles.row}>
+            <input
+              style={styles.input}
+              placeholder="Search by title, description, priority, or status..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {filteredTasks.length === 0 ? (
+          <div style={styles.empty}>
+            {searchTerm ? "No tasks found matching your search." : "No tasks yet. Create one above!"}
+          </div>
         ) : (
-          tasks.map((task) => (
+          filteredTasks.map((task) => (
             <div key={task.id} style={styles.card}>
               <div style={{ flex: 1 }}>
                 <div style={styles.cardTitle}>{task.title}</div>
@@ -211,11 +239,23 @@ function App() {
                   <span style={styles.statusBadge}>{task.status}</span>
                 </div>
                 <div style={styles.actions}>
-                  <button style={styles.smallBtn} onClick={() => toggleStatus(task)}>
-                    {task.status === "todo" ? "▶ Start" : task.status === "in-progress" ? "✓ Done" : "↺ Reopen"}
-                  </button>
+                  {task.status === "todo" && (
+                    <button style={{ ...styles.smallBtn, background: "#3b82f6", color: "#fff", border: "none" }} onClick={() => toggleStatus(task)}>
+                      Start
+                    </button>
+                  )}
+                  {task.status === "in-progress" && (
+                    <button style={{ ...styles.smallBtn, background: "#22c55e", color: "#fff", border: "none" }} onClick={() => toggleStatus(task)}>
+                      Complete
+                    </button>
+                  )}
+                  {task.status === "done" && (
+                    <button style={styles.smallBtn} onClick={() => toggleStatus(task)}>
+                      Reopen
+                    </button>
+                  )}
                   <button style={styles.deleteBtn} onClick={() => deleteTask(task)}>
-                    🗑 Delete
+                    Delete
                   </button>
                 </div>
               </div>
