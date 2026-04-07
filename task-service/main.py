@@ -1,12 +1,33 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 from uuid import uuid4
-from sqlalchemy import create_engine, Column, String, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
 import os
+from sqlalchemy import create_engine, Column, String, DateTime, Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import SQLAlchemyError
+
+# Database setup
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./tasks.db")
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# Database Models
+class TaskModel(Base):
+    __tablename__ = "tasks"
+    
+    id = Column(String, primary_key=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, default="")
+    priority = Column(String, default="medium")
+    status = Column(String, default="todo")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# Create tables
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Task Service", version="1.0.0")
 
@@ -16,25 +37,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Database setup
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/devtaskhub")
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-class TaskModel(Base):
-    __tablename__ = "tasks"
-    
-    id = Column(String, primary_key=True)
-    title = Column(String, nullable=False)
-    description = Column(String, default="")
-    priority = Column(String, default="medium")
-    status = Column(String, default="todo")
-    created_at = Column(String, nullable=False)
-
-# Create tables
-Base.metadata.create_all(bind=engine)
 
 class TaskCreate(BaseModel):
     title: str
@@ -68,7 +70,7 @@ def list_tasks():
             description=task.description,
             priority=task.priority,
             status=task.status,
-            created_at=task.created_at
+            created_at=task.created_at.isoformat()
         )
         for task in tasks
     ]
@@ -81,7 +83,7 @@ def create_task(task_in: TaskCreate):
         title=task_in.title,
         description=task_in.description,
         priority=task_in.priority,
-        created_at=datetime.now().isoformat(),
+        created_at=datetime.utcnow(),
     )
     db.add(task)
     db.commit()
@@ -92,7 +94,7 @@ def create_task(task_in: TaskCreate):
         description=task.description,
         priority=task.priority,
         status=task.status,
-        created_at=task.created_at
+        created_at=task.created_at.isoformat()
     )
 
 @app.get("/tasks/{task_id}")
@@ -107,7 +109,7 @@ def get_task(task_id: str):
         description=task.description,
         priority=task.priority,
         status=task.status,
-        created_at=task.created_at
+        created_at=task.created_at.isoformat()
     )
 
 @app.patch("/tasks/{task_id}")
@@ -129,7 +131,7 @@ def update_task(task_id: str, update: dict):
         description=task.description,
         priority=task.priority,
         status=task.status,
-        created_at=task.created_at
+        created_at=task.created_at.isoformat()
     )
 
 @app.delete("/tasks/{task_id}", status_code=204)

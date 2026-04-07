@@ -6,45 +6,53 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// PostgreSQL connection
+// Database connection
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/devtaskhub",
+  connectionString: process.env.DATABASE_URL || "postgresql://app_user:app_password@localhost:5432/devopstask_hub",
 });
 
-// Initialize database table
-async function initDatabase() {
+// Initialize database
+async function initDb() {
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS notifications (
         id VARCHAR(255) PRIMARY KEY,
         message TEXT NOT NULL,
-        type VARCHAR(50) DEFAULT 'info',
-        taskId VARCHAR(255),
+        type VARCHAR(20) DEFAULT 'info' CHECK (type IN ('info', 'success', 'warning')),
+        task_id VARCHAR(255),
         read BOOLEAN DEFAULT FALSE,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+      CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+      CREATE INDEX IF NOT EXISTS idx_notifications_task_id ON notifications(task_id);
     `);
     console.log("Database initialized successfully");
   } catch (error) {
-    console.error("Error initializing database:", error);
+    console.error("Database initialization error:", error);
   }
 }
 
-// Initialize database on startup
-initDatabase();
-
-app.get("/health", (req, res) => {
-  res.json({ status: "healthy", service: "notification-service" });
+app.get("/health", async (req, res) => {
+  try {
+    await pool.query("SELECT 1");
+    res.json({ status: "healthy", service: "notification-service" });
+  } catch (error) {
+    res.status(503).json({ status: "unhealthy", service: "notification-service" });
+  }
 });
 
 app.get("/notifications", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT * FROM notifications ORDER BY createdAt DESC LIMIT 50"
+      "SELECT * FROM notifications ORDER BY created_at DESC LIMIT 50"
     );
+    // Convert created_at to createdAt for frontend compatibility
     const notifications = result.rows.map(row => ({
       ...row,
-      createdAt: row.createdAt ? row.createdAt.toISOString() : new Date().toISOString(),
+      createdAt: row.created_at
     }));
     res.json(notifications);
   } catch (error) {
@@ -60,18 +68,27 @@ app.post("/notifications", async (req, res) => {
   }
   
   try {
-    const id = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const result = await pool.query(
-      "INSERT INTO notifications (id, message, type, taskId, createdAt) VALUES ($1, $2, $3, $4, NOW()) RETURNING *",
-      [id, message, type, taskId]
-    );
-    
     const notification = {
-      ...result.rows[0],
-      createdAt: result.rows[0].createdAt ? result.rows[0].createdAt.toISOString() : new Date().toISOString(),
+      id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      message,
+      type,
+      task_id: taskId,
+      read: false,
+      created_at: new Date().toISOString(),
     };
     
-    res.status(201).json(notification);
+    await pool.query(
+      `INSERT INTO notifications (id, message, type, task_id, read, created_at) 
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [notification.id, notification.message, notification.type, notification.task_id, notification.read, notification.created_at]
+    );
+    
+    // Return with createdAt field for frontend compatibility
+    const responseNotification = {
+      ...notification,
+      createdAt: notification.created_at
+    };
+    res.status(201).json(responseNotification);
   } catch (error) {
     console.error("Error creating notification:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -81,7 +98,7 @@ app.post("/notifications", async (req, res) => {
 app.patch("/notifications/:id/read", async (req, res) => {
   try {
     const result = await pool.query(
-      "UPDATE notifications SET read = TRUE WHERE id = $1 RETURNING *",
+      "UPDATE notifications SET read = true WHERE id = $1 RETURNING *",
       [req.params.id]
     );
     
@@ -89,14 +106,14 @@ app.patch("/notifications/:id/read", async (req, res) => {
       return res.status(404).json({ error: "Not found" });
     }
     
+    // Return with createdAt field for frontend compatibility
     const notification = {
       ...result.rows[0],
-      createdAt: result.rows[0].createdAt ? result.rows[0].createdAt.toISOString() : new Date().toISOString(),
+      createdAt: result.rows[0].created_at
     };
-    
     res.json(notification);
   } catch (error) {
-    console.error("Error updating notification:", error);
+    console.error("Error marking notification as read:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -106,14 +123,18 @@ app.delete("/notifications", async (req, res) => {
     await pool.query("DELETE FROM notifications");
     res.status(204).end();
   } catch (error) {
-    console.error("Error deleting notifications:", error);
+    console.error("Error clearing notifications:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Notification service running on port ${PORT}`);
+
+// Initialize database and start server
+initDb().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Notification service running on port ${PORT}`);
+  });
 });
 
 module.exports = app;
