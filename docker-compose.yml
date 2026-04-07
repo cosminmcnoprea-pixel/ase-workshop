@@ -1,31 +1,32 @@
 services:
-  db:
+  postgres:
     image: postgres:15-alpine
     environment:
-      POSTGRES_DB: taskdb
-      POSTGRES_USER: taskuser
-      POSTGRES_PASSWORD: taskpass
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      POSTGRES_DB: devopstask_hub
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: app_password
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U taskuser -d taskdb"]
+      test: [ "CMD-SHELL", "pg_isready -U app_user -d devopstask_hub" ]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 3
 
   task-service:
     build: ./task-service
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://taskuser:taskpass@db:5432/taskdb
+      DATABASE_URL: postgresql://app_user:app_password@postgres:5432/devopstask_hub
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -34,8 +35,13 @@ services:
     build: ./notification-service
     ports:
       - "3001:3001"
+    environment:
+      DATABASE_URL: postgresql://app_user:app_password@postgres:5432/devopstask_hub
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:3001/health" ]
       interval: 10s
       timeout: 5s
       retries: 3
