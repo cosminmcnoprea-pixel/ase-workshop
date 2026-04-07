@@ -3,28 +3,31 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 from uuid import uuid4
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Text, Boolean, TIMESTAMP, text
 import os
+from sqlalchemy import create_engine, Column, String, DateTime, Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import SQLAlchemyError
 
 # Database setup
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./tasks.db")
-engine = create_async_engine(DATABASE_URL, echo=True)
-SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./tasks.db")
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
-class Base(DeclarativeBase):
-    pass
-
+# Database Models
 class TaskModel(Base):
     __tablename__ = "tasks"
     
-    id: Mapped[str] = mapped_column(String(255), primary_key=True)
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str] = mapped_column(Text, default="")
-    priority: Mapped[str] = mapped_column(String(20), default="medium")
-    status: Mapped[str] = mapped_column(String(20), default="todo")
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), default=datetime.utcnow)
+    id = Column(String, primary_key=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, default="")
+    priority = Column(String, default="medium")
+    status = Column(String, default="todo")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# Create tables
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Task Service", version="1.0.0")
 
@@ -45,16 +48,38 @@ class Task(TaskCreate):
     status: str = "todo"
     created_at: str
 
+<<<<<<< HEAD
+=======
 @app.on_event("startup")
 async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+>>>>>>> main
 
 @app.get("/health")
 def health():
     return {"status": "healthy", "service": "task-service"}
 
 @app.get("/tasks")
+<<<<<<< HEAD
+def list_tasks(db: Session = Depends(get_db)):
+    tasks = db.query(TaskDB).all()
+    return [
+        {
+            "id": task.id,
+            "title": task.title,
+            "description": task.description,
+            "priority": task.priority,
+            "status": task.status,
+            "created_at": task.created_at.isoformat()
+        }
+        for task in tasks
+    ]
+
+@app.post("/tasks", status_code=201)
+def create_task(task_in: TaskCreate, db: Session = Depends(get_db)):
+    task = TaskDB(
+=======
 async def list_tasks():
     async with SessionLocal() as session:
         result = await session.execute(text("SELECT * FROM tasks ORDER BY created_at DESC"))
@@ -74,12 +99,73 @@ async def list_tasks():
 @app.post("/tasks", status_code=201)
 async def create_task(task_in: TaskCreate):
     task = Task(
+>>>>>>> main
         id=str(uuid4()),
         title=task_in.title,
         description=task_in.description,
         priority=task_in.priority,
-        created_at=datetime.now().isoformat(),
+        created_at=datetime.utcnow(),
     )
+<<<<<<< HEAD
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "priority": task.priority,
+        "status": task.status,
+        "created_at": task.created_at.isoformat()
+    }
+
+@app.get("/tasks/{task_id}")
+def get_task(task_id: str, db: Session = Depends(get_db)):
+    task = db.query(TaskDB).filter(TaskDB.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "priority": task.priority,
+        "status": task.status,
+        "created_at": task.created_at.isoformat()
+    }
+
+@app.patch("/tasks/{task_id}")
+def update_task(task_id: str, update: dict, db: Session = Depends(get_db)):
+    task = db.query(TaskDB).filter(TaskDB.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    for key, value in update.items():
+        if hasattr(task, key) and key != "id":
+            setattr(task, key, value)
+    
+    db.commit()
+    db.refresh(task)
+    
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "priority": task.priority,
+        "status": task.status,
+        "created_at": task.created_at.isoformat()
+    }
+
+@app.delete("/tasks/{task_id}", status_code=204)
+def delete_task(task_id: str, db: Session = Depends(get_db)):
+    task = db.query(TaskDB).filter(TaskDB.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    db.delete(task)
+    db.commit()
+=======
     
     async with SessionLocal() as session:
         db_task = TaskModel(
@@ -156,3 +242,4 @@ async def delete_task(task_id: str):
         
         await session.execute(text(f"DELETE FROM tasks WHERE id = '{task_id}'"))
         await session.commit()
+>>>>>>> main
