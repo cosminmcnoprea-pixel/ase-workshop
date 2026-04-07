@@ -12,6 +12,8 @@ function App() {
   const [showNotifs, setShowNotifs] = useState(false);
   const [health, setHealth] = useState({ tasks: false, notifications: false });
   const [form, setForm] = useState({ title: "", description: "", priority: "medium" });
+  const [editingTask, setEditingTask] = useState(null);
+  const [editForm, setEditForm] = useState({ title: "", description: "", priority: "medium" });
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -100,6 +102,35 @@ function App() {
     } catch {}
   };
 
+  const startEdit = (task) => {
+    setEditingTask(task);
+    setEditForm({ 
+      title: task.title, 
+      description: task.description, 
+      priority: task.priority 
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingTask(null);
+    setEditForm({ title: "", description: "", priority: "medium" });
+  };
+
+  const updateTask = async (e) => {
+    e.preventDefault();
+    if (!editForm.title.trim() || !editingTask) return;
+    try {
+      await fetch(`${TASK_API}/tasks/${editingTask.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      fetchTasks();
+      sendNotification(`Task "${editForm.title}" updated`, "info", editingTask.id);
+      cancelEdit();
+    } catch {}
+  };
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const styles = {
@@ -126,7 +157,14 @@ function App() {
     statusBadge: { display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: "#e2e8f0", color: "#334155" },
     actions: { display: "flex", gap: 6, marginTop: 8 },
     smallBtn: { padding: "4px 10px", borderRadius: 4, border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", fontSize: 12 },
+    editBtn: { padding: "4px 10px", borderRadius: 4, border: "1px solid #dbeafe", background: "#fff", color: "#3b82f6", cursor: "pointer", fontSize: 12 },
     deleteBtn: { padding: "4px 10px", borderRadius: 4, border: "1px solid #fecaca", background: "#fff", color: "#ef4444", cursor: "pointer", fontSize: 12 },
+    modal: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
+    modalContent: { background: "#fff", borderRadius: 12, padding: 24, width: "90%", maxWidth: 500, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" },
+    modalTitle: { fontSize: 18, fontWeight: 600, marginBottom: 16, color: "#1e293b" },
+    modalActions: { display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 },
+    cancelBtn: { padding: "8px 16px", borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer", fontSize: 14 },
+    saveBtn: { padding: "8px 16px", borderRadius: 6, border: "none", background: "#3b82f6", color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600 },
     footer: { textAlign: "center", padding: "16px", fontSize: 12, color: "#94a3b8", display: "flex", justifyContent: "center", gap: 16 },
     dot: (ok) => ({ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: ok ? "#22c55e" : "#ef4444", marginRight: 4 }),
     empty: { textAlign: "center", color: "#94a3b8", padding: 32, fontSize: 14 },
@@ -211,11 +249,14 @@ function App() {
                   <span style={styles.statusBadge}>{task.status}</span>
                 </div>
                 <div style={styles.actions}>
+                  <button style={styles.editBtn} onClick={() => startEdit(task)}>
+                    Edit
+                  </button>
                   <button style={styles.smallBtn} onClick={() => toggleStatus(task)}>
-                    {task.status === "todo" ? "▶ Start" : task.status === "in-progress" ? "✓ Done" : "↺ Reopen"}
+                    {task.status === "todo" ? "Start" : task.status === "in-progress" ? "Done" : "Reopen"}
                   </button>
                   <button style={styles.deleteBtn} onClick={() => deleteTask(task)}>
-                    🗑 Delete
+                    Delete
                   </button>
                 </div>
               </div>
@@ -226,6 +267,51 @@ function App() {
           ))
         )}
       </main>
+
+      {/* Edit Modal */}
+      {editingTask && (
+        <div style={styles.modal} onClick={cancelEdit}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalTitle}>Edit Task</div>
+            <form onSubmit={updateTask}>
+              <div style={styles.row}>
+                <input
+                  style={styles.input}
+                  placeholder="Task title"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                  required
+                />
+                <select
+                  style={styles.select}
+                  value={editForm.priority}
+                  onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+              <div style={styles.row}>
+                <input
+                  style={styles.input}
+                  placeholder="Description (optional)"
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                />
+              </div>
+              <div style={styles.modalActions}>
+                <button type="button" style={styles.cancelBtn} onClick={cancelEdit}>
+                  Cancel
+                </button>
+                <button type="submit" style={styles.saveBtn}>
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <footer style={styles.footer}>
         <span><span style={styles.dot(health.tasks)} />Task Service</span>
