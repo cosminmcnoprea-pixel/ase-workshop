@@ -4,6 +4,7 @@ import { useTheme } from "./ThemeContext.jsx";
 
 const TASK_API = import.meta.env.VITE_TASK_API_URL || "http://localhost:8000";
 const NOTIF_API = import.meta.env.VITE_NOTIFICATION_API_URL || "http://localhost:3001";
+const UTILITY_API = import.meta.env.VITE_UTILITY_API_URL || "http://localhost:8080/utility";
 
 const PRIORITY_COLORS = { low: "#22c55e", medium: "#f59e0b", high: "#ef4444" };
 const STATUS_FLOW = { todo: "in-progress", "in-progress": "done", done: "todo" };
@@ -76,13 +77,17 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [showNotifs, setShowNotifs] = useState(false);
-  const [health, setHealth] = useState({ tasks: false, notifications: false });
+  const [health, setHealth] = useState({ tasks: false, notifications: false, utility: false });
   const [form, setForm] = useState({ title: "", description: "", priority: "medium" });
   const [searchTerm, setSearchTerm] = useState("");
   const { isDark } = useTheme();
   const theme = THEMES[isDark ? "dark" : "light"];
   const [editingTask, setEditingTask] = useState(null);
   const [editForm, setEditForm] = useState({ title: "", description: "", priority: "medium" });
+  const [analytics, setAnalytics] = useState(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState(null);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -98,6 +103,28 @@ function App() {
     } catch { }
   }, []);
 
+  const fetchAnalytics = useCallback(async () => {
+    setAnalyticsLoading(true);
+    setAnalyticsError(null);
+    try {
+      console.log("Fetching analytics from:", `${UTILITY_API}/api/analytics/dashboard/summary`);
+      const res = await fetch(`${UTILITY_API}/api/analytics/dashboard/summary`);
+      if (!res.ok) {
+        console.error("Analytics fetch failed with status:", res.status);
+        setAnalyticsError(`Failed to fetch analytics: ${res.status}`);
+        return;
+      }
+      const data = await res.json();
+      console.log("Analytics data received:", data);
+      setAnalytics(data);
+    } catch (error) {
+      console.error("Failed to fetch analytics:", error);
+      setAnalyticsError("Failed to connect to analytics service");
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, []);
+
   const checkHealth = useCallback(async () => {
     try {
       const r = await fetch(`${TASK_API}/health`);
@@ -110,6 +137,12 @@ function App() {
       setHealth((h) => ({ ...h, notifications: r.ok }));
     } catch {
       setHealth((h) => ({ ...h, notifications: false }));
+    }
+    try {
+      const r = await fetch(`${UTILITY_API}/actuator/health`);
+      setHealth((h) => ({ ...h, utility: r.ok }));
+    } catch {
+      setHealth((h) => ({ ...h, utility: false }));
     }
   }, []);
 
@@ -261,6 +294,24 @@ function App() {
         </div>
         <div style={styles.headerActions}>
           <ThemeToggle />
+          <button
+            onClick={() => {
+              setShowAnalytics(!showAnalytics);
+              if (!showAnalytics) fetchAnalytics();
+            }}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 6,
+              border: "1px solid #e2e8f0",
+              background: "#fff",
+              color: "#1e293b",
+              cursor: "pointer",
+              fontSize: 14,
+              fontWeight: 600
+            }}
+          >
+            📊 Analytics
+          </button>
           <div style={styles.bellWrap}>
             <button style={styles.bell} onClick={() => setShowNotifs(!showNotifs)}>
               🔔
@@ -290,6 +341,66 @@ function App() {
       </header>
 
       <main style={styles.main}>
+        {showAnalytics && (
+          <div style={styles.form}>
+            <div style={styles.formTitle}>📊 Dashboard Analytics</div>
+            {analyticsLoading && <div style={{ padding: 16, textAlign: "center" }}>Loading analytics...</div>}
+            {analyticsError && <div style={{ padding: 16, color: "#ef4444" }}>{analyticsError}</div>}
+            {analytics && !analyticsLoading && !analyticsError && (
+              <>
+                {analytics.task_statistics && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Task Statistics</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>
+                      <div style={{ background: "#f1f5f9", padding: 12, borderRadius: 6 }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: "#3b82f6" }}>{analytics.task_statistics.totalTasks}</div>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>Total Tasks</div>
+                      </div>
+                      <div style={{ background: "#f1f5f9", padding: 12, borderRadius: 6 }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: "#22c55e" }}>{analytics.task_statistics.completedTasks}</div>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>Completed</div>
+                      </div>
+                      <div style={{ background: "#f1f5f9", padding: 12, borderRadius: 6 }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: "#f59e0b" }}>{analytics.task_statistics.inProgressTasks}</div>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>In Progress</div>
+                      </div>
+                      <div style={{ background: "#f1f5f9", padding: 12, borderRadius: 6 }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: "#ef4444" }}>{analytics.task_statistics.highPriorityTasks}</div>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>High Priority</div>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 8, fontSize: 13 }}>
+                      <strong>Completion Rate:</strong> {analytics.task_statistics.completionRate?.toFixed(1)}%
+                    </div>
+                  </div>
+                )}
+                {analytics.notification_statistics && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Notification Statistics</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>
+                      <div style={{ background: "#f1f5f9", padding: 12, borderRadius: 6 }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: "#3b82f6" }}>{analytics.notification_statistics.totalNotifications}</div>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>Total Notifications</div>
+                      </div>
+                      <div style={{ background: "#f1f5f9", padding: 12, borderRadius: 6 }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: "#ef4444" }}>{analytics.notification_statistics.unreadNotifications}</div>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>Unread</div>
+                      </div>
+                      <div style={{ background: "#f1f5f9", padding: 12, borderRadius: 6 }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: "#22c55e" }}>{analytics.notification_statistics.successNotifications}</div>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>Success</div>
+                      </div>
+                      <div style={{ background: "#f1f5f9", padding: 12, borderRadius: 6 }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: "#f59e0b" }}>{analytics.notification_statistics.warningNotifications}</div>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>Warnings</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
         <form style={styles.form} onSubmit={createTask}>
           <div style={styles.formTitle}>Create New Task</div>
           <div style={styles.row}>
@@ -428,6 +539,7 @@ function App() {
       <footer style={styles.footer}>
         <span><span style={styles.dot(health.tasks)} />Task Service</span>
         <span><span style={styles.dot(health.notifications)} />Notification Service</span>
+        <span><span style={styles.dot(health.utility)} />Utility Service</span>
       </footer>
     </div>
   );

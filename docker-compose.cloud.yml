@@ -63,6 +63,7 @@ services:
       args:
         VITE_TASK_API_URL: http://localhost:8000
         VITE_NOTIFICATION_API_URL: http://localhost:3001
+        VITE_UTILITY_API_URL: http://localhost:8080/utility
     ports:
       - "3000:80"
     depends_on:
@@ -70,3 +71,24 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_healthy
+      utility-service:
+        condition: service_healthy
+
+  # Utility Service with Cloud SQL
+  utility-service:
+    build: ./utility-service
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@cloud-sql-proxy:5432/devtaskhub
+      EMAIL_USERNAME: ${EMAIL_USERNAME:-noreply@devtaskhub.com}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-your-app-password}
+    depends_on:
+      cloud-sql-proxy:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/utility/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

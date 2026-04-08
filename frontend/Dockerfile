@@ -7,6 +7,7 @@ COPY . .
 
 ARG VITE_TASK_API_URL=http://localhost:8000
 ARG VITE_NOTIFICATION_API_URL=http://localhost:3001
+ARG VITE_UTILITY_API_URL=http://localhost:8080
 
 RUN npm run build
 

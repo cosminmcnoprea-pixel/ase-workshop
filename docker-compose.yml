@@ -51,7 +51,7 @@ services:
       args:
         VITE_TASK_API_URL: http://localhost:8000
         VITE_NOTIFICATION_API_URL: http://localhost:3001
-        VITE_UTILITY_API_URL: http://localhost:8080
+        VITE_UTILITY_API_URL: http://localhost:8080/utility
     ports:
       - "3000:80"
     depends_on:

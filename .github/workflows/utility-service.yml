@@ -1,0 +1,89 @@
+name: Utility Service CI/CD
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'utility-service/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'utility-service/**'
+
+env:
+  GCP_PROJECT_ID: aseworkshop
+  GCP_REGION: us-central1
+  ARTIFACT_REGISTRY: us-central1-docker.pkg.dev
+  REPOSITORY: ase-workshop
+  SERVICE_NAME: utility-service
+  CLOUD_SQL_INSTANCE: devtaskhub-db
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: utility-service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+          cache-dependency-path: utility-service/pom.xml
+
+      - name: Build with Maven
+        run: mvn clean compile
+
+      - name: Run tests
+        run: mvn test
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+                       -t ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:latest \
+                       ./utility-service
+
+      - name: Push Docker image
+        run: |
+          docker push ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          docker push ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --region ${{ env.GCP_REGION }} \
+            --allow-unauthenticated \
+            --set-env-vars="DATABASE_URL=postgresql://postgres:postgres@10.0.0.5:5432/devtaskhub" \
+            --set-cloudsql-instances="${{ env.GCP_PROJECT_ID }}:${{ env.GCP_REGION }}:${{ env.CLOUD_SQL_INSTANCE }}" \
+            --vpc-egress=all \
+            --port=8080
