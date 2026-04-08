@@ -3,7 +3,7 @@ name: Task Service CI/CD
 on:
   workflow_dispatch:
   push:
-branches: [main, feature/postgresql-integration-ui-improvements]
+    branches: [main, feature/postgresql-integration-ui-improvements]
     paths:
       - 'task-service/**'
       - 'init-db.sql'
