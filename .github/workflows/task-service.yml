@@ -3,9 +3,10 @@ name: Task Service CI/CD
 on:
   workflow_dispatch:
   push:
-    branches: [main, feature/postgresql-integration-with-edit]
+branches: [main, feature/postgresql-integration-ui-improvements]
     paths:
       - 'task-service/**'
+      - 'init-db.sql'
   pull_request:
     branches: [main]
     paths:
@@ -13,10 +14,11 @@ on:
 
 env:
   GCP_PROJECT_ID: aseworkshop
-  GCP_REGION: europe-west3
-  ARTIFACT_REGISTRY: europe-west3-docker.pkg.dev
+  GCP_REGION: us-central1
+  ARTIFACT_REGISTRY: us-central1-docker.pkg.dev
   REPOSITORY: ase-workshop
   SERVICE_NAME: task-service
+  CLOUD_SQL_INSTANCE: devtaskhub-db
 
 jobs:
   test:
@@ -79,9 +81,11 @@ jobs:
           docker push ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:latest
 
       - name: Deploy to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: ${{ env.SERVICE_NAME }}
-          region: ${{ env.GCP_REGION }}
-          image: ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
-          flags: --allow-unauthenticated --port=8000
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --region ${{ env.GCP_REGION }} \
+            --allow-unauthenticated \
+            --set-env-vars="DATABASE_URL=postgresql://postgres:postgres@10.0.0.5:5432/devtaskhub" \
+            --set-cloudsql-instances="${{ env.GCP_PROJECT_ID }}:${{ env.GCP_REGION }}:${{ env.CLOUD_SQL_INSTANCE }}" \
+            --vpc-egress=all

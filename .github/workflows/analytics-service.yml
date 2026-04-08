@@ -1,0 +1,102 @@
+name: Analytics Service CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'analytics-service/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'analytics-service/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_USER: testuser
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    defaults:
+      run:
+        working-directory: analytics-service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: analytics-service/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -p 5432 -U testuser && echo "PostgreSQL is ready!" && exit 0
+            echo "Waiting for PostgreSQL... ($i/30)"
+            sleep 1
+          done
+          echo "PostgreSQL did not become ready in time" && exit 1
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
+
+      - name: Run linter
+        run: python -m py_compile main.py
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
+        run: pytest tests/ -v
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./analytics-service
+          push: false
+          tags: devtask-hub/analytics-service:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Uncomment and configure for your registry:
+      # - name: Login to Container Registry
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.actor }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
+      #
+      # - name: Push Docker image
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: ./analytics-service
+      #     push: true
+      #     tags: |
+      #       ghcr.io/${{ github.repository }}/analytics-service:${{ github.sha }}
+      #       ghcr.io/${{ github.repository }}/analytics-service:latest

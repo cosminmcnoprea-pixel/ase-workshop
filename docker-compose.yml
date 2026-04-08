@@ -1,8 +1,29 @@
 services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: devtaskhub
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   task-service:
     build: ./task-service
     ports:
       - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/devtaskhub
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
       interval: 10s
@@ -13,6 +34,11 @@ services:
     build: ./notification-service
     ports:
       - "3001:3001"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/devtaskhub
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: [ "CMD", "wget", "--spider", "-q", "http://localhost:3001/health" ]
       interval: 10s
@@ -40,6 +66,7 @@ services:
       args:
         VITE_TASK_API_URL: http://localhost:8000
         VITE_NOTIFICATION_API_URL: http://localhost:3001
+        VITE_UTILITY_API_URL: http://localhost:8080
     ports:
       - "3000:80"
     depends_on:
@@ -47,3 +74,25 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_healthy
+      utility-service:
+        condition: service_healthy
+
+  utility-service:
+    build: ./utility-service
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/devtaskhub
+      EMAIL_USERNAME: ${EMAIL_USERNAME:-noreply@devtaskhub.com}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-your-app-password}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
