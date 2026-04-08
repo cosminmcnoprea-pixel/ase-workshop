@@ -2,7 +2,7 @@ name: Task Service CI/CD
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/postgresql-integration-with-edit]
     paths:
       - 'task-service/**'
   pull_request:
@@ -39,7 +39,7 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/postgresql-integration-with-edit')
 
     steps:
       - uses: actions/checkout@v4

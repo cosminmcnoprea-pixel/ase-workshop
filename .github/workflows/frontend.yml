@@ -2,7 +2,7 @@ name: Frontend CI/CD
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/postgresql-integration-with-edit]
     paths:
       - 'frontend/**'
   pull_request:
@@ -36,7 +36,7 @@ jobs:
   docker:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/postgresql-integration-with-edit')
 
     steps:
       - uses: actions/checkout@v4
