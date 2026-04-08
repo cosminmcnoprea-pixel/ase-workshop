@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from datetime import datetime
 from uuid import uuid4
 
+# Task Service - In-memory storage for development
+
 app = FastAPI(title="Task Service", version="1.0.0")
 
 app.add_middleware(
