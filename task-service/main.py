@@ -4,6 +4,32 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 from uuid import uuid4
+import os
+from sqlalchemy import create_engine, Column, String, DateTime, Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import SQLAlchemyError
+
+# Database setup
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/devtaskhub")
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# Database Models
+class TaskModel(Base):
+    __tablename__ = "tasks"
+    
+    id = Column(String(36), primary_key=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, default="")
+    priority = Column(String(10), default="medium")
+    status = Column(String(20), default="todo")
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+# Create tables
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Task Service", version="1.0.0")
 
@@ -24,7 +50,12 @@ class Task(TaskCreate):
     status: str = "todo"
     created_at: str
 
-tasks: dict[str, Task] = {}
+def get_db():
+    db = SessionLocal()
+    try:
+        return db
+    finally:
+        pass  # Keep session open for request
 
 @app.get("/health")
 def health():
@@ -32,39 +63,84 @@ def health():
 
 @app.get("/tasks")
 def list_tasks():
-    return list(tasks.values())
+    db = get_db()
+    tasks = db.query(TaskModel).all()
+    return [
+        Task(
+            id=task.id,
+            title=task.title,
+            description=task.description,
+            priority=task.priority,
+            status=task.status,
+            created_at=task.created_at.isoformat()
+        )
+        for task in tasks
+    ]
 
 @app.post("/tasks", status_code=201)
 def create_task(task_in: TaskCreate):
-    task = Task(
+    db = get_db()
+    task = TaskModel(
         id=str(uuid4()),
         title=task_in.title,
         description=task_in.description,
         priority=task_in.priority,
-        created_at=datetime.now().isoformat(),
+        created_at=datetime.utcnow(),
     )
-    tasks[task.id] = task
-    return task
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return Task(
+        id=task.id,
+        title=task.title,
+        description=task.description,
+        priority=task.priority,
+        status=task.status,
+        created_at=task.created_at.isoformat()
+    )
 
 @app.get("/tasks/{task_id}")
 def get_task(task_id: str):
-    if task_id not in tasks:
+    db = get_db()
+    task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
+    if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    return tasks[task_id]
+    return Task(
+        id=task.id,
+        title=task.title,
+        description=task.description,
+        priority=task.priority,
+        status=task.status,
+        created_at=task.created_at.isoformat()
+    )
 
 @app.patch("/tasks/{task_id}")
 def update_task(task_id: str, update: dict):
-    if task_id not in tasks:
+    db = get_db()
+    task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
+    if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    task = tasks[task_id]
+    
     for key, value in update.items():
         if hasattr(task, key) and key != "id":
             setattr(task, key, value)
-    tasks[task_id] = task
-    return task
+    
+    db.commit()
+    db.refresh(task)
+    return Task(
+        id=task.id,
+        title=task.title,
+        description=task.description,
+        priority=task.priority,
+        status=task.status,
+        created_at=task.created_at.isoformat()
+    )
 
 @app.delete("/tasks/{task_id}", status_code=204)
 def delete_task(task_id: str):
-    if task_id not in tasks:
+    db = get_db()
+    task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
+    if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    del tasks[task_id]
+    db.delete(task)
+    db.commit()
