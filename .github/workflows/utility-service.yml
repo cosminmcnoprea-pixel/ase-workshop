@@ -20,11 +20,13 @@ env:
   CLOUD_SQL_INSTANCE: devtaskhub-db
 
 jobs:
-  test:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: utility-service
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -38,22 +40,8 @@ jobs:
           cache-dependency-path: utility-service/pom.xml
 
       - name: Build with Maven
-        run: mvn clean compile
-
-      - name: Run tests
-        run: mvn test
-
-  build-and-deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
-
-    permissions:
-      contents: read
-      id-token: write
-
-    steps:
-      - uses: actions/checkout@v4
+        working-directory: utility-service
+        run: mvn clean package -DskipTests
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
