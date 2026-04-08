@@ -8,9 +8,13 @@ from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
-# Database setup
+# Database setup (lazy — so the container can start even if DB is unreachable)
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://taskuser:taskpass@postgres:5432/taskdb")
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    connect_args={"connect_timeout": 5},
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -47,8 +51,7 @@ class NotificationAnalytics(Base):
     notifications_by_type = Column(Text, default="{}")  # JSON string
     created_at = Column(DateTime, default=datetime.now)
 
-# Create tables
-Base.metadata.create_all(bind=engine)
+# Table creation is deferred to the startup event below
 
 # Pydantic models
 class TaskAnalyticsResponse(BaseModel):
@@ -72,6 +75,14 @@ class NotificationAnalyticsResponse(BaseModel):
     notifications_by_type: Dict[str, int]
 
 app = FastAPI(title="Analytics Service", version="1.0.0")
+
+@app.on_event("startup")
+def on_startup():
+    """Try to create tables at startup, but don't crash if DB is unreachable."""
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"WARNING: Could not connect to database on startup: {e}")
 
 app.add_middleware(
     CORSMiddleware,
