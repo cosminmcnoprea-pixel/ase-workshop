@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 
 const TASK_API = import.meta.env.VITE_TASK_API_URL || "http://localhost:8000";
 const NOTIF_API = import.meta.env.VITE_NOTIFICATION_API_URL || "http://localhost:3001";
+const ANALYTICS_API = import.meta.env.VITE_ANALYTICS_API_URL || "http://localhost:4002";
 
 const PRIORITY_COLORS = { low: "#22c55e", medium: "#f59e0b", high: "#ef4444" };
 const STATUS_FLOW = { todo: "in-progress", "in-progress": "done", done: "todo" };
@@ -10,8 +11,10 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [showNotifs, setShowNotifs] = useState(false);
-  const [health, setHealth] = useState({ tasks: false, notifications: false });
+  const [health, setHealth] = useState({ tasks: false, notifications: false, analytics: false });
   const [form, setForm] = useState({ title: "", description: "", priority: "medium" });
+  const [currentView, setCurrentView] = useState("tasks");
+  const [analytics, setAnalytics] = useState({ tasks: [], users: [], notifications: [], summary: {} });
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -24,6 +27,24 @@ function App() {
     try {
       const res = await fetch(`${NOTIF_API}/notifications`);
       setNotifications(await res.json());
+    } catch {}
+  }, []);
+
+  const fetchAnalytics = useCallback(async () => {
+    try {
+      const [tasksRes, usersRes, notificationsRes, summaryRes] = await Promise.all([
+        fetch(`${ANALYTICS_API}/analytics/tasks`),
+        fetch(`${ANALYTICS_API}/analytics/users`),
+        fetch(`${ANALYTICS_API}/analytics/notifications`),
+        fetch(`${ANALYTICS_API}/analytics/summary`)
+      ]);
+      
+      setAnalytics({
+        tasks: await tasksRes.json(),
+        users: await usersRes.json(),
+        notifications: await notificationsRes.json(),
+        summary: await summaryRes.json()
+      });
     } catch {}
   }, []);
 
@@ -40,6 +61,12 @@ function App() {
     } catch {
       setHealth((h) => ({ ...h, notifications: false }));
     }
+    try {
+      const r = await fetch(`${ANALYTICS_API}/health`);
+      setHealth((h) => ({ ...h, analytics: r.ok }));
+    } catch {
+      setHealth((h) => ({ ...h, analytics: false }));
+    }
   }, []);
 
   useEffect(() => {
@@ -49,6 +76,12 @@ function App() {
     const interval = setInterval(checkHealth, 15000);
     return () => clearInterval(interval);
   }, [fetchTasks, fetchNotifications, checkHealth]);
+
+  useEffect(() => {
+    if (currentView === "analytics") {
+      fetchAnalytics();
+    }
+  }, [currentView, fetchAnalytics]);
 
   const sendNotification = async (message, type = "info", taskId = null) => {
     try {
@@ -107,6 +140,7 @@ function App() {
     header: { background: "#1e293b", color: "#fff", padding: "16px 32px", display: "flex", justifyContent: "space-between", alignItems: "center" },
     logo: { fontSize: 24, fontWeight: 700, margin: 0 },
     subtitle: { fontSize: 13, color: "#94a3b8", marginTop: 2 },
+    navBtn: { padding: "8px 16px", borderRadius: 6, border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 14, fontWeight: 600, transition: "all 0.2s" },
     bellWrap: { position: "relative", cursor: "pointer" },
     bell: { fontSize: 22, background: "none", border: "none", color: "#fff", cursor: "pointer" },
     badge: { position: "absolute", top: -6, right: -8, background: "#ef4444", color: "#fff", borderRadius: "50%", width: 18, height: 18, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 },
@@ -130,6 +164,16 @@ function App() {
     footer: { textAlign: "center", padding: "16px", fontSize: 12, color: "#94a3b8", display: "flex", justifyContent: "center", gap: 16 },
     dot: (ok) => ({ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: ok ? "#22c55e" : "#ef4444", marginRight: 4 }),
     empty: { textAlign: "center", color: "#94a3b8", padding: 32, fontSize: 14 },
+    analyticsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 16, marginBottom: 24 },
+    metricCard: { background: "#fff", borderRadius: 10, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
+    metricTitle: { fontSize: 14, color: "#64748b", marginBottom: 8 },
+    metricValue: { fontSize: 32, fontWeight: 700, color: "#1e293b", marginBottom: 4 },
+    metricSubtitle: { fontSize: 12, color: "#94a3b8" },
+    chartCard: { background: "#fff", borderRadius: 10, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,.06)", marginBottom: 16 },
+    chartTitle: { fontSize: 16, fontWeight: 600, color: "#334155", marginBottom: 16 },
+    barChart: { display: "flex", alignItems: "flex-end", height: 120, gap: 8 },
+    bar: (height, color) => ({ flex: 1, background: color, borderRadius: "4px 4px 0 0", minHeight: 4, position: "relative" }),
+    barLabel: { fontSize: 10, color: "#64748b", textAlign: "center", marginTop: 4 },
   };
 
   return (
@@ -139,97 +183,159 @@ function App() {
           <h1 style={styles.logo}>DevTask Hub</h1>
           <div style={styles.subtitle}>Microservices Task Manager</div>
         </div>
-        <div style={styles.bellWrap}>
-          <button style={styles.bell} onClick={() => setShowNotifs(!showNotifs)}>
-            🔔
-          </button>
-          {unreadCount > 0 && <span style={styles.badge}>{unreadCount}</span>}
-          {showNotifs && (
-            <div style={styles.notifPanel}>
-              {notifications.length === 0 ? (
-                <div style={styles.notifItem}>No notifications</div>
-              ) : (
-                notifications.slice(0, 15).map((n) => (
-                  <div key={n.id} style={{ ...styles.notifItem, fontWeight: n.read ? 400 : 600 }}>
-                    <span style={{ marginRight: 6 }}>
-                      {n.type === "success" ? "✅" : n.type === "warning" ? "⚠️" : "ℹ️"}
-                    </span>
-                    {n.message}
-                    <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
-                      {new Date(n.createdAt).toLocaleTimeString()}
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          <nav style={{ display: "flex", gap: 16 }}>
+            <button 
+              style={{ 
+                ...styles.navBtn, 
+                background: currentView === "tasks" ? "#3b82f6" : "transparent",
+                color: currentView === "tasks" ? "#fff" : "#94a3b8"
+              }}
+              onClick={() => setCurrentView("tasks")}
+            >
+              Tasks
+            </button>
+            <button 
+              style={{ 
+                ...styles.navBtn, 
+                background: currentView === "analytics" ? "#3b82f6" : "transparent",
+                color: currentView === "analytics" ? "#fff" : "#94a3b8"
+              }}
+              onClick={() => setCurrentView("analytics")}
+            >
+              Analytics
+            </button>
+          </nav>
+          <div style={styles.bellWrap}>
+            <button style={styles.bell} onClick={() => setShowNotifs(!showNotifs)}>
+              🔔
+            </button>
+            {unreadCount > 0 && <span style={styles.badge}>{unreadCount}</span>}
+            {showNotifs && (
+              <div style={styles.notifPanel}>
+                {notifications.length === 0 ? (
+                  <div style={styles.notifItem}>No notifications</div>
+                ) : (
+                  notifications.slice(0, 15).map((n) => (
+                    <div key={n.id} style={{ ...styles.notifItem, fontWeight: n.read ? 400 : 600 }}>
+                      <span style={{ marginRight: 6 }}>
+                        {n.type === "success" ? "✅" : n.type === "warning" ? "⚠️" : "ℹ️"}
+                      </span>
+                      {n.message}
+                      <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                        {new Date(n.createdAt).toLocaleTimeString()}
+                      </div>
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
       <main style={styles.main}>
-        <form style={styles.form} onSubmit={createTask}>
-          <div style={styles.formTitle}>Create New Task</div>
-          <div style={styles.row}>
-            <input
-              style={styles.input}
-              placeholder="Task title"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              required
-            />
-            <select
-              style={styles.select}
-              value={form.priority}
-              onChange={(e) => setForm({ ...form, priority: e.target.value })}
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-          <div style={styles.row}>
-            <input
-              style={styles.input}
-              placeholder="Description (optional)"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
-            <button style={styles.btn} type="submit">Add Task</button>
-          </div>
-        </form>
+        {currentView === "tasks" ? (
+          <>
+            <form style={styles.form} onSubmit={createTask}>
+              <div style={styles.formTitle}>Create New Task</div>
+              <div style={styles.row}>
+                <input
+                  style={styles.input}
+                  placeholder="Task title"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  required
+                />
+                <select
+                  style={styles.select}
+                  value={form.priority}
+                  onChange={(e) => setForm({ ...form, priority: e.target.value })}
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+              <div style={styles.row}>
+                <input
+                  style={styles.input}
+                  placeholder="Description (optional)"
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                />
+                <button style={styles.btn} type="submit">Add Task</button>
+              </div>
+            </form>
 
-        {tasks.length === 0 ? (
-          <div style={styles.empty}>No tasks yet. Create one above!</div>
+            {tasks.length === 0 ? (
+              <div style={styles.empty}>No tasks yet. Create one above!</div>
+            ) : (
+              tasks.map((task) => (
+                <div key={task.id} style={styles.card}>
+                  <div style={{ flex: 1 }}>
+                    <div style={styles.cardTitle}>{task.title}</div>
+                    {task.description && <div style={styles.cardDesc}>{task.description}</div>}
+                    <div style={{ marginTop: 8 }}>
+                      <span style={styles.priorityBadge(task.priority)}>{task.priority}</span>
+                      <span style={styles.statusBadge}>{task.status}</span>
+                    </div>
+                    <div style={styles.actions}>
+                      <button style={styles.smallBtn} onClick={() => toggleStatus(task)}>
+                        {task.status === "todo" ? "Start" : task.status === "in-progress" ? "Done" : "Reopen"}
+                      </button>
+                      <button style={styles.deleteBtn} onClick={() => deleteTask(task)}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", whiteSpace: "nowrap" }}>
+                    {new Date(task.created_at).toLocaleDateString()}
+                  </div>
+                </div>
+              ))
+            )}
+          </>
         ) : (
-          tasks.map((task) => (
-            <div key={task.id} style={styles.card}>
-              <div style={{ flex: 1 }}>
-                <div style={styles.cardTitle}>{task.title}</div>
-                {task.description && <div style={styles.cardDesc}>{task.description}</div>}
-                <div style={{ marginTop: 8 }}>
-                  <span style={styles.priorityBadge(task.priority)}>{task.priority}</span>
-                  <span style={styles.statusBadge}>{task.status}</span>
-                </div>
-                <div style={styles.actions}>
-                  <button style={styles.smallBtn} onClick={() => toggleStatus(task)}>
-                    {task.status === "todo" ? "▶ Start" : task.status === "in-progress" ? "✓ Done" : "↺ Reopen"}
-                  </button>
-                  <button style={styles.deleteBtn} onClick={() => deleteTask(task)}>
-                    🗑 Delete
-                  </button>
-                </div>
-              </div>
-              <div style={{ fontSize: 11, color: "#94a3b8", whiteSpace: "nowrap" }}>
-                {new Date(task.created_at).toLocaleDateString()}
-              </div>
+          <div style={styles.analyticsGrid}>
+            <div style={styles.metricCard}>
+              <div style={styles.metricTitle}>Total Tasks Today</div>
+              <div style={styles.metricValue}>{analytics.summary.tasks?.total_today || 0}</div>
+              <div style={styles.metricSubtitle}>Tasks created</div>
             </div>
-          ))
+            <div style={styles.metricCard}>
+              <div style={styles.metricTitle}>Completed Today</div>
+              <div style={styles.metricValue}>{analytics.summary.tasks?.completed_today || 0}</div>
+              <div style={styles.metricSubtitle}>Tasks finished</div>
+            </div>
+            <div style={styles.metricCard}>
+              <div style={styles.metricTitle}>Completion Rate</div>
+              <div style={styles.metricValue}>{analytics.summary.tasks?.completion_rate?.toFixed(1) || 0}%</div>
+              <div style={styles.metricSubtitle}>Daily average</div>
+            </div>
+            <div style={styles.metricCard}>
+              <div style={styles.metricTitle}>Active Users</div>
+              <div style={styles.metricValue}>{analytics.summary.users?.active_today || 0}</div>
+              <div style={styles.metricSubtitle}>Users online</div>
+            </div>
+            <div style={styles.metricCard}>
+              <div style={styles.metricTitle}>Notifications Sent</div>
+              <div style={styles.metricValue}>{analytics.summary.notifications?.total_today || 0}</div>
+              <div style={styles.metricSubtitle}>Today's notifications</div>
+            </div>
+            <div style={styles.metricCard}>
+              <div style={styles.metricTitle}>Read Rate</div>
+              <div style={styles.metricValue}>{analytics.summary.notifications?.read_rate?.toFixed(1) || 0}%</div>
+              <div style={styles.metricSubtitle}>Notification engagement</div>
+            </div>
+          </div>
         )}
       </main>
 
       <footer style={styles.footer}>
         <span><span style={styles.dot(health.tasks)} />Task Service</span>
         <span><span style={styles.dot(health.notifications)} />Notification Service</span>
+        <span><span style={styles.dot(health.analytics)} />Analytics Service</span>
       </footer>
     </div>
   );
