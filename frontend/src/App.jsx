@@ -1,3 +1,4 @@
+// Cloud Run deployment
 import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "./ThemeContext.jsx";
 
@@ -168,7 +169,7 @@ function App() {
         await fetch(`${TASK_API}/tasks/${task.id}`, { method: "DELETE" });
         fetchTasks();
         sendNotification(`Task "${task.title}" deleted`, "warning", task.id);
-      } catch {}
+      } catch { }
     }
   };
 
