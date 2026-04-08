@@ -42,7 +42,11 @@ app.get("/health", (req, res) => {
 app.get("/notifications", async (req, res) => {
   try {
     const result = await pool.query(
+<<<<<<< HEAD
       "SELECT * FROM notifications ORDER BY created_at DESC LIMIT 50"
+=======
+      "SELECT id, message, type, task_id AS \"taskId\", read, created_at AS \"createdAt\" FROM notifications ORDER BY created_at DESC LIMIT 50"
+>>>>>>> main
     );
     res.json(result.rows);
   } catch (error) {
@@ -56,6 +60,7 @@ app.post("/notifications", async (req, res) => {
   if (!message) {
     return res.status(400).json({ error: "message is required" });
   }
+<<<<<<< HEAD
   
   try {
     const id = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -64,6 +69,16 @@ app.post("/notifications", async (req, res) => {
       [id, message, type, taskId]
     );
     
+=======
+
+  try {
+    const id = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const result = await pool.query(
+      "INSERT INTO notifications (id, message, type, task_id, created_at) VALUES ($1, $2, $3, $4, NOW()) RETURNING id, message, type, task_id AS \"taskId\", read, created_at AS \"createdAt\"",
+      [id, message, type, taskId]
+    );
+
+>>>>>>> main
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error("Error creating notification:", error);
@@ -74,6 +89,7 @@ app.post("/notifications", async (req, res) => {
 app.patch("/notifications/:id/read", async (req, res) => {
   try {
     const result = await pool.query(
+<<<<<<< HEAD
       "UPDATE notifications SET read = TRUE WHERE id = $1 RETURNING *",
       [req.params.id]
     );
@@ -82,6 +98,16 @@ app.patch("/notifications/:id/read", async (req, res) => {
       return res.status(404).json({ error: "Not found" });
     }
     
+=======
+      "UPDATE notifications SET read = TRUE WHERE id = $1 RETURNING id, message, type, task_id AS \"taskId\", read, created_at AS \"createdAt\"",
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Not found" });
+    }
+
+>>>>>>> main
     res.json(result.rows[0]);
   } catch (error) {
     console.error("Error updating notification:", error);

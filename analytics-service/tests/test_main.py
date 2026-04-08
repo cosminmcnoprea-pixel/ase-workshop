@@ -1,8 +1,14 @@
 import pytest
 import httpx
 from fastapi.testclient import TestClient
+<<<<<<< HEAD
 from main import app
 
+=======
+from main import app, Base, engine
+
+Base.metadata.create_all(bind=engine)
+>>>>>>> main
 client = TestClient(app)
 
 def test_health():

@@ -5,6 +5,11 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+<<<<<<< HEAD
+=======
+import java.util.Map;
+
+>>>>>>> main
 @Data
 @Builder
 @NoArgsConstructor

@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 FROM openjdk:17-jdk-slim
+=======
+FROM eclipse-temurin:17-jdk
+>>>>>>> main
 
 WORKDIR /app
 
@@ -7,8 +11,12 @@ COPY pom.xml .
 COPY src ./src
 
 # Install Maven
+<<<<<<< HEAD
 RUN apt-get update && \
     apt-get install -y maven
+=======
+RUN apt-get update && apt-get install -y --no-install-recommends maven curl && rm -rf /var/lib/apt/lists/*
+>>>>>>> main
 
 # Build the application
 RUN mvn clean package -DskipTests

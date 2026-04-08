@@ -8,9 +8,19 @@ from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
+<<<<<<< HEAD
 # Database setup
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://taskuser:taskpass@postgres:5432/taskdb")
 engine = create_engine(DATABASE_URL)
+=======
+# Database setup (lazy — so the container can start even if DB is unreachable)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://taskuser:taskpass@postgres:5432/taskdb")
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    connect_args={"connect_timeout": 5},
+)
+>>>>>>> main
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -47,8 +57,12 @@ class NotificationAnalytics(Base):
     notifications_by_type = Column(Text, default="{}")  # JSON string
     created_at = Column(DateTime, default=datetime.now)
 
+<<<<<<< HEAD
 # Create tables
 Base.metadata.create_all(bind=engine)
+=======
+# Table creation is deferred to the startup event below
+>>>>>>> main
 
 # Pydantic models
 class TaskAnalyticsResponse(BaseModel):
@@ -73,6 +87,17 @@ class NotificationAnalyticsResponse(BaseModel):
 
 app = FastAPI(title="Analytics Service", version="1.0.0")
 
+<<<<<<< HEAD
+=======
+@app.on_event("startup")
+def on_startup():
+    """Try to create tables at startup, but don't crash if DB is unreachable."""
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"WARNING: Could not connect to database on startup: {e}")
+
+>>>>>>> main
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

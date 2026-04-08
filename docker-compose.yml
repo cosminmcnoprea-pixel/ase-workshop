@@ -10,7 +10,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
+<<<<<<< HEAD
       test: ["CMD-SHELL", "pg_isready -U postgres"]
+=======
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+>>>>>>> main
       interval: 10s
       timeout: 5s
       retries: 3
@@ -63,12 +67,19 @@ services:
   frontend:
     build:
       context: ./frontend
+<<<<<<< HEAD
       args:
         VITE_TASK_API_URL: http://localhost:8000
         VITE_NOTIFICATION_API_URL: http://localhost:3001
         VITE_UTILITY_API_URL: http://localhost:8080
+=======
+>>>>>>> main
     ports:
       - "3000:80"
+    environment:
+      VITE_TASK_API_URL: http://localhost:8000
+      VITE_NOTIFICATION_API_URL: http://localhost:3001
+      VITE_UTILITY_API_URL: http://localhost:8080/utility
     depends_on:
       task-service:
         condition: service_healthy
@@ -89,7 +100,11 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
+<<<<<<< HEAD
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+=======
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/utility/actuator/health" ]
+>>>>>>> main
       interval: 10s
       timeout: 5s
       retries: 3

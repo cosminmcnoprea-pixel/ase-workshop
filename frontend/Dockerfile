@@ -5,13 +5,12 @@ COPY package*.json ./
 RUN npm install
 COPY . .
 
-ARG VITE_TASK_API_URL=http://localhost:8000
-ARG VITE_NOTIFICATION_API_URL=http://localhost:3001
-
 RUN npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/entrypoint.sh"]

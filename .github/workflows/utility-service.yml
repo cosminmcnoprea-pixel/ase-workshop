@@ -1,48 +1,26 @@
-name: Notification Service CI/CD
+name: Utility Service CI/CD
 
 on:
   workflow_dispatch:
   push:
-    branches: [main, feature/postgresql-integration-with-edit]
+    branches: [main]
     paths:
-      - 'notification-service/**'
+      - 'utility-service/**'
   pull_request:
     branches: [main]
     paths:
-      - 'notification-service/**'
+      - 'utility-service/**'
 
 env:
   GCP_PROJECT_ID: aseworkshop
   GCP_REGION: europe-west3
   ARTIFACT_REGISTRY: europe-west3-docker.pkg.dev
   REPOSITORY: ase-workshop
-  SERVICE_NAME: notification-service
+  SERVICE_NAME: utility-service
+  CLOUD_SQL_INSTANCE: devtaskhub-db
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: notification-service
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: notification-service/package-lock.json
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run tests
-        run: npm test
-
   build-and-deploy:
-    needs: test
     runs-on: ubuntu-latest
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
 
@@ -52,6 +30,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+          cache-dependency-path: utility-service/pom.xml
+
+      - name: Build with Maven
+        working-directory: utility-service
+        run: mvn clean package -DskipTests
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -68,7 +58,7 @@ jobs:
         run: |
           docker build -t ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
                        -t ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:latest \
-                       ./notification-service
+                       ./utility-service
 
       - name: Push Docker image
         run: |
@@ -81,6 +71,6 @@ jobs:
           service: ${{ env.SERVICE_NAME }}
           region: ${{ env.GCP_REGION }}
           image: ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
-          flags: --allow-unauthenticated --port=3001
+          flags: --allow-unauthenticated --port=8080
           env_vars: |
             DATABASE_URL=postgresql://postgres:postgres@10.0.0.5:5432/devtaskhub
