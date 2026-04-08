@@ -1,4 +1,4 @@
-FROM eclipse-temurin:17-jdk-alpine
+FROM eclipse-temurin:17-jdk
 
 WORKDIR /app
 
@@ -7,7 +7,7 @@ COPY pom.xml .
 COPY src ./src
 
 # Install Maven
-RUN apk add --no-cache maven curl
+RUN apt-get update && apt-get install -y --no-install-recommends maven curl && rm -rf /var/lib/apt/lists/*
 
 # Build the application
 RUN mvn clean package -DskipTests
