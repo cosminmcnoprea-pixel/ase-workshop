@@ -1,6 +1,7 @@
 name: Frontend CI/CD
 
 on:
+  workflow_dispatch:
   push:
     branches: [main, feature/postgresql-integration-with-edit]
     paths:
@@ -9,6 +10,13 @@ on:
     branches: [main]
     paths:
       - 'frontend/**'
+
+env:
+  GCP_PROJECT_ID: aseworkshop
+  GCP_REGION: europe-west3
+  ARTIFACT_REGISTRY: europe-west3-docker.pkg.dev
+  REPOSITORY: ase-workshop
+  SERVICE_NAME: frontend
 
 jobs:
   build:
@@ -33,25 +41,54 @@ jobs:
       - name: Build
         run: npm run build
 
-  docker:
+  build-and-deploy:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/postgresql-integration-with-edit')
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
+
+      - name: Get backend Cloud Run URLs
+        run: |
+          TASK_URL=$(gcloud run services describe task-service --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "http://localhost:8000")
+          NOTIF_URL=$(gcloud run services describe notification-service --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "http://localhost:3001")
+          echo "TASK_API_URL=$TASK_URL" >> $GITHUB_ENV
+          echo "NOTIF_API_URL=$NOTIF_URL" >> $GITHUB_ENV
 
       - name: Build Docker image
-        uses: docker/build-push-action@v5
+        run: |
+          docker build \
+            --build-arg VITE_TASK_API_URL=${{ env.TASK_API_URL }} \
+            --build-arg VITE_NOTIFICATION_API_URL=${{ env.NOTIF_API_URL }} \
+            -t ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            -t ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:latest \
+            ./frontend
+
+      - name: Push Docker image
+        run: |
+          docker push ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          docker push ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:latest
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
         with:
-          context: ./frontend
-          push: false
-          tags: devtask-hub/frontend:${{ github.sha }}
-          build-args: |
-            VITE_TASK_API_URL=http://localhost:8000
-            VITE_NOTIFICATION_API_URL=http://localhost:3001
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.GCP_REGION }}
+          image: ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          flags: --allow-unauthenticated --port=80
