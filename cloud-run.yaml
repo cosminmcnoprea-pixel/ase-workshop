@@ -1,0 +1,85 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: devtask-hub
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/cpu-throttling: "true"
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 30
+      containers:
+        - name: frontend
+          image: us-central1-docker.pkg.dev/PROJECT_ID/devtask-hub/frontend:latest
+          ports:
+            - containerPort: 80
+          env:
+            - name: VITE_TASK_API_URL
+              value: "https://task-service-PROJECT_ID.uc.r.appspot.com"
+            - name: VITE_NOTIFICATION_API_URL
+              value: "https://notification-service-PROJECT_ID.uc.r.appspot.com"
+          resources:
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+---
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: task-service
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/cpu-throttling: "true"
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 30
+      containers:
+        - name: task-service
+          image: us-central1-docker.pkg.dev/PROJECT_ID/devtask-hub/task-service:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: PORT
+              value: "8000"
+          resources:
+            limits:
+              cpu: "1"
+              memory: "256Mi"
+---
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: notification-service
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/cpu-throttling: "true"
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 30
+      containers:
+        - name: notification-service
+          image: us-central1-docker.pkg.dev/PROJECT_ID/devtask-hub/notification-service:latest
+          ports:
+            - containerPort: 3001
+          env:
+            - name: PORT
+              value: "3001"
+          resources:
+            limits:
+              cpu: "1"
+              memory: "256Mi"

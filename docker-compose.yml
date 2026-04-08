@@ -1,64 +1,30 @@
-services:
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: devopstask_hub
-      POSTGRES_USER: app_user
-      POSTGRES_PASSWORD: app_password
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app_user -d devopstask_hub"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+version: '3.8'
 
+services:
   task-service:
     build: ./task-service
+    container_name: task-service
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://app_user:app_password@postgres:5432/devopstask_hub
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+      - PORT=8000
 
   notification-service:
     build: ./notification-service
+    container_name: notification-service
     ports:
       - "3001:3001"
     environment:
-      DATABASE_URL: postgresql://app_user:app_password@postgres:5432/devopstask_hub
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+      - PORT=3001
 
   frontend:
-    build:
-      context: ./frontend
-      args:
-        VITE_TASK_API_URL: http://localhost:8000
-        VITE_NOTIFICATION_API_URL: http://localhost:3001
+    build: ./frontend
+    container_name: frontend
     ports:
       - "3000:80"
     depends_on:
-      task-service:
-        condition: service_healthy
-      notification-service:
-        condition: service_healthy
-
-volumes:
-  postgres_data:
+      - task-service
+      - notification-service
+    environment:
+      - VITE_TASK_API_URL=http://localhost:8000
+      - VITE_NOTIFICATION_API_URL=http://localhost:3001
