@@ -90,4 +90,4 @@ jobs:
 
     - name: Show URL
       run: |
-        echo "Application deployed at: https://${{ env.SERVICE_NAME }}-${{ random }}.${{ env.GAR_LOCATION }}-run.app"
+        echo "Application deployed at: https://${{ env.SERVICE_NAME }}-${{ github.run_number }}.${{ env.GAR_LOCATION }}-run.app"
