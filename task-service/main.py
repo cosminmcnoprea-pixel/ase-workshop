@@ -1,5 +1,5 @@
 # Cloud Run deployment
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
@@ -45,41 +45,34 @@ class TaskCreate(BaseModel):
     description: str = ""
     priority: str = "medium"
 
-class Task(TaskCreate):
-    id: str
-    status: str = "todo"
-    created_at: str
-
 def get_db():
     db = SessionLocal()
     try:
-        return db
+        yield db
     finally:
-        pass  # Keep session open for request
+        db.close()
 
 @app.get("/health")
 def health():
     return {"status": "healthy", "service": "task-service"}
 
 @app.get("/tasks")
-def list_tasks():
-    db = get_db()
+def list_tasks(db: Session = Depends(get_db)):
     tasks = db.query(TaskModel).all()
     return [
-        Task(
-            id=task.id,
-            title=task.title,
-            description=task.description,
-            priority=task.priority,
-            status=task.status,
-            created_at=task.created_at.isoformat()
-        )
+        {
+            "id": task.id,
+            "title": task.title,
+            "description": task.description,
+            "priority": task.priority,
+            "status": task.status,
+            "created_at": task.created_at.isoformat()
+        }
         for task in tasks
     ]
 
 @app.post("/tasks", status_code=201)
-def create_task(task_in: TaskCreate):
-    db = get_db()
+def create_task(task_in: TaskCreate, db: Session = Depends(get_db)):
     task = TaskModel(
         id=str(uuid4()),
         title=task_in.title,
@@ -90,33 +83,31 @@ def create_task(task_in: TaskCreate):
     db.add(task)
     db.commit()
     db.refresh(task)
-    return Task(
-        id=task.id,
-        title=task.title,
-        description=task.description,
-        priority=task.priority,
-        status=task.status,
-        created_at=task.created_at.isoformat()
-    )
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "priority": task.priority,
+        "status": task.status,
+        "created_at": task.created_at.isoformat()
+    }
 
 @app.get("/tasks/{task_id}")
-def get_task(task_id: str):
-    db = get_db()
+def get_task(task_id: str, db: Session = Depends(get_db)):
     task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    return Task(
-        id=task.id,
-        title=task.title,
-        description=task.description,
-        priority=task.priority,
-        status=task.status,
-        created_at=task.created_at.isoformat()
-    )
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "priority": task.priority,
+        "status": task.status,
+        "created_at": task.created_at.isoformat()
+    }
 
 @app.patch("/tasks/{task_id}")
-def update_task(task_id: str, update: dict):
-    db = get_db()
+def update_task(task_id: str, update: dict, db: Session = Depends(get_db)):
     task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -127,18 +118,17 @@ def update_task(task_id: str, update: dict):
     
     db.commit()
     db.refresh(task)
-    return Task(
-        id=task.id,
-        title=task.title,
-        description=task.description,
-        priority=task.priority,
-        status=task.status,
-        created_at=task.created_at.isoformat()
-    )
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "priority": task.priority,
+        "status": task.status,
+        "created_at": task.created_at.isoformat()
+    }
 
 @app.delete("/tasks/{task_id}", status_code=204)
-def delete_task(task_id: str):
-    db = get_db()
+def delete_task(task_id: str, db: Session = Depends(get_db)):
     task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
