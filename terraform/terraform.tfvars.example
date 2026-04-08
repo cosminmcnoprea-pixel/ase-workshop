@@ -1,0 +1,8 @@
+project_id    = "aseworkshop"
+region        = "europe-west3"
+instance_name = "ase-workshop-db"
+db_tier       = "db-f1-micro"
+disk_size     = 10
+db_name       = "devtask_hub"
+db_user       = "app_user"
+db_password   = "CHANGE_ME_TO_A_SECURE_PASSWORD"
