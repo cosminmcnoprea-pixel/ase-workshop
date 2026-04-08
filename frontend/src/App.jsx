@@ -4,6 +4,7 @@ import { useTheme } from "./ThemeContext.jsx";
 
 const TASK_API = import.meta.env.VITE_TASK_API_URL || "http://localhost:8000";
 const NOTIF_API = import.meta.env.VITE_NOTIFICATION_API_URL || "http://localhost:3001";
+const TICKET_API = import.meta.env.VITE_TICKET_MONITOR_URL || "http://localhost:8002";
 
 const PRIORITY_COLORS = { low: "#22c55e", medium: "#f59e0b", high: "#ef4444" };
 const STATUS_FLOW = { todo: "in-progress", "in-progress": "done", done: "todo" };
@@ -76,13 +77,14 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [showNotifs, setShowNotifs] = useState(false);
-  const [health, setHealth] = useState({ tasks: false, notifications: false });
+  const [health, setHealth] = useState({ tasks: false, notifications: false, tickets: false });
   const [form, setForm] = useState({ title: "", description: "", priority: "medium" });
   const [searchTerm, setSearchTerm] = useState("");
   const { isDark } = useTheme();
   const theme = THEMES[isDark ? "dark" : "light"];
   const [editingTask, setEditingTask] = useState(null);
   const [editForm, setEditForm] = useState({ title: "", description: "", priority: "medium" });
+  const [tickets, setTickets] = useState({ available: 50, route: "Bucuresti - Tecuci", status: "available" });
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -98,6 +100,33 @@ function App() {
     } catch { }
   }, []);
 
+  const fetchTickets = useCallback(async () => {
+    try {
+      const res = await fetch(`${TICKET_API}/tickets/check`);
+      const ticketData = await res.json();
+      setTickets({
+        available: ticketData.available_tickets,
+        route: ticketData.route,
+        status: ticketData.status
+      });
+    } catch { }
+  }, []);
+
+  const addTicket = async () => {
+    try {
+      const res = await fetch(`${TICKET_API}/tickets/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      const data = await res.json();
+      setTickets(prev => ({
+        ...prev,
+        available: data.available_tickets
+      }));
+      sendNotification(`Ticket added! New total: ${data.available_tickets}`, "success");
+    } catch { }
+  };
+
   const checkHealth = useCallback(async () => {
     try {
       const r = await fetch(`${TASK_API}/health`);
@@ -111,15 +140,22 @@ function App() {
     } catch {
       setHealth((h) => ({ ...h, notifications: false }));
     }
+    try {
+      const r = await fetch(`${TICKET_API}/health`);
+      setHealth((h) => ({ ...h, tickets: r.ok }));
+    } catch {
+      setHealth((h) => ({ ...h, tickets: false }));
+    }
   }, []);
 
   useEffect(() => {
     fetchTasks();
     fetchNotifications();
+    fetchTickets();
     checkHealth();
     const interval = setInterval(checkHealth, 15000);
     return () => clearInterval(interval);
-  }, [fetchTasks, fetchNotifications, checkHealth]);
+  }, [fetchTasks, fetchNotifications, fetchTickets, checkHealth]);
 
   const sendNotification = async (message, type = "info", taskId = null) => {
     try {
@@ -334,6 +370,42 @@ function App() {
           </div>
         </div>
 
+        {/* Ticket Monitor Section */}
+        <div style={styles.form}>
+          <div style={styles.formTitle}>🎫 Ticket Monitor - {tickets.route}</div>
+          <div style={{ ...styles.row, alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 24, fontWeight: 'bold', color: tickets.status === 'sold_out' ? '#ef4444' : tickets.status === 'low_availability' ? '#f59e0b' : '#22c55e' }}>
+                  {tickets.available}
+                </div>
+                <div style={{ fontSize: 12, color: theme.subtitle.color }}>
+                  Available Tickets
+                </div>
+              </div>
+              <div>
+                <span style={{
+                  ...styles.statusBadge,
+                  background: tickets.status === 'sold_out' ? '#ef4444' : tickets.status === 'low_availability' ? '#f59e0b' : '#22c55e',
+                  color: '#fff'
+                }}>
+                  {tickets.status.replace('_', ' ').toUpperCase()}
+                </span>
+              </div>
+            </div>
+            <button 
+              style={{ 
+                ...styles.btn, 
+                background: '#22c55e',
+                minWidth: '80px'
+              }} 
+              onClick={addTicket}
+            >
+              Add Ticket
+            </button>
+          </div>
+        </div>
+
         {filteredTasks.length === 0 ? (
           <div style={styles.empty}>
             {searchTerm ? "No tasks found matching your search." : "No tasks yet. Create one above!"}
@@ -428,6 +500,7 @@ function App() {
       <footer style={styles.footer}>
         <span><span style={styles.dot(health.tasks)} />Task Service</span>
         <span><span style={styles.dot(health.notifications)} />Notification Service</span>
+        <span><span style={styles.dot(health.tickets)} />Ticket Monitor</span>
       </footer>
     </div>
   );
