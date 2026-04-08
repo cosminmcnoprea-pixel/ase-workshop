@@ -1,0 +1,54 @@
+services:
+  task-service:
+    build: ./task-service
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  notification-service:
+    build: ./notification-service
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  collaboration-service:
+    build: ./collaboration-service
+    ports:
+      - "3002:3002"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    environment:
+      POSTGRES_DB: taskdb
+      POSTGRES_USER: taskuser
+      POSTGRES_PASSWORD: taskpass
+      AUTH_DB: authdb
+      AUTH_USER: authuser
+      AUTH_PASSWORD: authpass
+      COLLAB_DB: collabdb
+      COLLAB_USER: collabuser
+      COLLAB_PASSWORD: collabpass
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_TASK_API_URL: http://localhost:8000
+        VITE_NOTIFICATION_API_URL: http://localhost:3001
+    ports:
+      - "3000:80"
+    depends_on:
+      task-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy

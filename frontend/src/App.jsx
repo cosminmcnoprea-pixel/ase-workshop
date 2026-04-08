@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 
 const TASK_API = import.meta.env.VITE_TASK_API_URL || "http://localhost:8000";
 const NOTIF_API = import.meta.env.VITE_NOTIFICATION_API_URL || "http://localhost:3001";
+const COLLAB_API = import.meta.env.VITE_COLLAB_API_URL || "http://localhost:4006";
 
 const PRIORITY_COLORS = { low: "#22c55e", medium: "#f59e0b", high: "#ef4444" };
 const STATUS_FLOW = { todo: "in-progress", "in-progress": "done", done: "todo" };
@@ -12,6 +13,11 @@ function App() {
   const [showNotifs, setShowNotifs] = useState(false);
   const [health, setHealth] = useState({ tasks: false, notifications: false });
   const [form, setForm] = useState({ title: "", description: "", priority: "medium" });
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [comments, setComments] = useState([]);
+  const [attachments, setAttachments] = useState([]);
+  const [newComment, setNewComment] = useState("");
+  const [showCollabPanel, setShowCollabPanel] = useState(false);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -95,8 +101,86 @@ function App() {
   const deleteTask = async (task) => {
     try {
       await fetch(`${TASK_API}/tasks/${task.id}`, { method: "DELETE" });
-      fetchTasks();
+      setTasks(tasks.filter((t) => t.id !== task.id));
       sendNotification(`Task "${task.title}" deleted`, "warning", task.id);
+    } catch {}
+  };
+
+  // Collaboration functions
+  const fetchComments = async (taskId) => {
+    try {
+      const res = await fetch(`${COLLAB_API}/tasks/${taskId}/comments`);
+      const data = await res.json();
+      setComments(data.comments || []);
+    } catch {}
+  };
+
+  const fetchAttachments = async (taskId) => {
+    try {
+      const res = await fetch(`${COLLAB_API}/tasks/${taskId}/attachments`);
+      const data = await res.json();
+      setAttachments(data.attachments || []);
+    } catch {}
+  };
+
+  const openCollabPanel = async (task) => {
+    setSelectedTask(task);
+    setShowCollabPanel(true);
+    await fetchComments(task.id);
+    await fetchAttachments(task.id);
+  };
+
+  const addComment = async () => {
+    if (!newComment.trim() || !selectedTask) return;
+    
+    try {
+      await fetch(`${COLLAB_API}/tasks/${selectedTask.id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: "current-user", // This would come from auth service
+          username: "CurrentUser", // This would come from auth service
+          content: newComment
+        })
+      });
+      
+      setNewComment("");
+      await fetchComments(selectedTask.id);
+    } catch {}
+  };
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file || !selectedTask) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("userId", "current-user");
+    formData.append("username", "CurrentUser");
+
+    try {
+      await fetch(`${COLLAB_API}/tasks/${selectedTask.id}/attachments`, {
+        method: "POST",
+        body: formData
+      });
+      
+      await fetchAttachments(selectedTask.id);
+      event.target.value = ""; // Clear file input
+    } catch {}
+  };
+
+  const downloadFile = async (attachmentId, filename) => {
+    try {
+      const res = await fetch(`${COLLAB_API}/attachments/${attachmentId}/download`);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
     } catch {}
   };
 
@@ -212,10 +296,13 @@ function App() {
                 </div>
                 <div style={styles.actions}>
                   <button style={styles.smallBtn} onClick={() => toggleStatus(task)}>
-                    {task.status === "todo" ? "▶ Start" : task.status === "in-progress" ? "✓ Done" : "↺ Reopen"}
+                    {task.status === "todo" ? "Start" : task.status === "in-progress" ? "Done" : "Reopen"}
+                  </button>
+                  <button style={{...styles.smallBtn, background: "#8b5cf6", color: "#fff"}} onClick={() => openCollabPanel(task)}>
+                    Comments
                   </button>
                   <button style={styles.deleteBtn} onClick={() => deleteTask(task)}>
-                    🗑 Delete
+                    Delete
                   </button>
                 </div>
               </div>
@@ -231,6 +318,186 @@ function App() {
         <span><span style={styles.dot(health.tasks)} />Task Service</span>
         <span><span style={styles.dot(health.notifications)} />Notification Service</span>
       </footer>
+
+      {/* Collaboration Panel */}
+      {showCollabPanel && selectedTask && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: "#fff",
+            borderRadius: 12,
+            padding: 24,
+            width: "90%",
+            maxWidth: 600,
+            maxHeight: "80vh",
+            overflowY: "auto",
+            position: "relative"
+          }}>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 20,
+              borderBottom: "1px solid #e2e8f0",
+              paddingBottom: 12
+            }}>
+              <h3 style={{ margin: 0, fontSize: 18, color: "#1e293b" }}>
+                {selectedTask.title} - Collaboration
+              </h3>
+              <button
+                onClick={() => setShowCollabPanel(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: 20,
+                  cursor: "pointer",
+                  color: "#64748b"
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Comments Section */}
+            <div style={{ marginBottom: 24 }}>
+              <h4 style={{ fontSize: 16, margin: "0 0 12px 0", color: "#334155" }}>Comments</h4>
+              
+              {/* Add Comment */}
+              <div style={{ marginBottom: 16 }}>
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Add a comment... (Markdown supported)"
+                  style={{
+                    width: "100%",
+                    minHeight: 80,
+                    padding: 12,
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 8,
+                    fontSize: 14,
+                    resize: "vertical",
+                    fontFamily: "inherit"
+                  }}
+                />
+                <button
+                  onClick={addComment}
+                  style={{
+                    marginTop: 8,
+                    padding: "8px 16px",
+                    background: "#8b5cf6",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    fontSize: 14,
+                    fontWeight: 600
+                  }}
+                >
+                  Add Comment
+                </button>
+              </div>
+
+              {/* Comments List */}
+              <div style={{ maxHeight: 300, overflowY: "auto" }}>
+                {comments.length === 0 ? (
+                  <div style={{ color: "#94a3b8", fontSize: 14, textAlign: "center", padding: 20 }}>
+                    No comments yet. Be the first to comment!
+                  </div>
+                ) : (
+                  comments.map((comment) => (
+                    <div key={comment.id} style={{
+                      background: "#f8fafc",
+                      padding: 12,
+                      borderRadius: 8,
+                      marginBottom: 8,
+                      border: "1px solid #e2e8f0"
+                    }}>
+                      <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>
+                        <strong>{comment.username}</strong> · {new Date(comment.created_at).toLocaleString()}
+                        {comment.edited && <span style={{ marginLeft: 8, color: "#94a3b8" }}>(edited)</span>}
+                      </div>
+                      <div style={{ fontSize: 14, color: "#334155" }} 
+                           dangerouslySetInnerHTML={{ __html: comment.content_html || comment.content }} />
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* File Attachments Section */}
+            <div style={{ marginBottom: 24 }}>
+              <h4 style={{ fontSize: 16, margin: "0 0 12px 0", color: "#334155" }}>File Attachments</h4>
+              
+              {/* Upload File */}
+              <div style={{ marginBottom: 16 }}>
+                <input
+                  type="file"
+                  onChange={handleFileUpload}
+                  style={{
+                    padding: 8,
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 6,
+                    fontSize: 14
+                  }}
+                />
+              </div>
+
+              {/* Attachments List */}
+              <div style={{ maxHeight: 200, overflowY: "auto" }}>
+                {attachments.length === 0 ? (
+                  <div style={{ color: "#94a3b8", fontSize: 14, textAlign: "center", padding: 20 }}>
+                    No files attached yet.
+                  </div>
+                ) : (
+                  attachments.map((attachment) => (
+                    <div key={attachment.id} style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: 8,
+                      background: "#f8fafc",
+                      borderRadius: 6,
+                      marginBottom: 6,
+                      border: "1px solid #e2e8f0"
+                    }}>
+                      <div style={{ flex: 1, fontSize: 14, color: "#334155" }}>
+                        <strong>{attachment.original_filename}</strong>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>
+                          {attachment.username} · {(attachment.file_size / 1024).toFixed(1)} KB
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => downloadFile(attachment.id, attachment.original_filename)}
+                        style={{
+                          padding: "4px 8px",
+                          background: "#3b82f6",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 4,
+                          cursor: "pointer",
+                          fontSize: 12
+                        }}
+                      >
+                        Download
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
