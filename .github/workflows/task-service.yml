@@ -81,16 +81,6 @@ jobs:
           docker push ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:latest
 
       - name: Deploy to Cloud Run
-<<<<<<< HEAD
-        run: |
-          gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
-            --region ${{ env.GCP_REGION }} \
-            --allow-unauthenticated \
-            --set-env-vars="DATABASE_URL=postgresql://postgres:postgres@10.0.0.5:5432/devtaskhub" \
-            --set-cloudsql-instances="${{ env.GCP_PROJECT_ID }}:${{ env.GCP_REGION }}:${{ env.CLOUD_SQL_INSTANCE }}" \
-            --vpc-egress=all
-=======
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE_NAME }}
@@ -99,4 +89,3 @@ jobs:
           flags: --allow-unauthenticated --port=8000
           env_vars: |
             DATABASE_URL=postgresql://postgres:postgres@10.0.0.5:5432/devtaskhub
->>>>>>> main

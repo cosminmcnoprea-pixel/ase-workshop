@@ -1,10 +1,7 @@
 name: Analytics Service CI/CD
 
 on:
-<<<<<<< HEAD
-=======
   workflow_dispatch:
->>>>>>> main
   push:
     branches: [main]
     paths:
@@ -14,8 +11,6 @@ on:
     paths:
       - 'analytics-service/**'
 
-<<<<<<< HEAD
-=======
 env:
   GCP_PROJECT_ID: aseworkshop
   GCP_REGION: europe-west3
@@ -24,7 +19,6 @@ env:
   SERVICE_NAME: analytics-service
   CLOUD_SQL_INSTANCE: devtaskhub-db
 
->>>>>>> main
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -77,14 +71,6 @@ jobs:
       - name: Run tests
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
-<<<<<<< HEAD
-        run: pytest tests/ -v
-
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-=======
         run: PYTHONPATH=. pytest tests/ -v
 
   build-and-deploy:
@@ -95,41 +81,10 @@ jobs:
     permissions:
       contents: read
       id-token: write
->>>>>>> main
 
     steps:
       - uses: actions/checkout@v4
 
-<<<<<<< HEAD
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./analytics-service
-          push: false
-          tags: devtask-hub/analytics-service:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # Uncomment and configure for your registry:
-      # - name: Login to Container Registry
-      #   uses: docker/login-action@v3
-      #   with:
-      #     registry: ghcr.io
-      #     username: ${{ github.actor }}
-      #     password: ${{ secrets.GITHUB_TOKEN }}
-      #
-      # - name: Push Docker image
-      #   uses: docker/build-push-action@v5
-      #   with:
-      #     context: ./analytics-service
-      #     push: true
-      #     tags: |
-      #       ghcr.io/${{ github.repository }}/analytics-service:${{ github.sha }}
-      #       ghcr.io/${{ github.repository }}/analytics-service:latest
-=======
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -161,4 +116,3 @@ jobs:
           flags: --allow-unauthenticated --port=4002
           env_vars: |
             DATABASE_URL=postgresql://postgres:postgres@10.0.0.5:5432/devtaskhub
->>>>>>> main

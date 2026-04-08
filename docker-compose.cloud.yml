@@ -17,7 +17,7 @@ services:
       - "5432:5432"
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -h localhost -U postgres" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -34,7 +34,7 @@ services:
       - "8000:8000"
     restart: always
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -51,7 +51,7 @@ services:
       - "3001:3001"
     restart: always
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:3001/health" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -63,10 +63,7 @@ services:
       args:
         VITE_TASK_API_URL: http://localhost:8000
         VITE_NOTIFICATION_API_URL: http://localhost:3001
-<<<<<<< HEAD
-=======
         VITE_UTILITY_API_URL: http://localhost:8080/utility
->>>>>>> main
     ports:
       - "3000:80"
     depends_on:
@@ -74,8 +71,6 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_healthy
-<<<<<<< HEAD
-=======
       utility-service:
         condition: service_healthy
 
@@ -93,8 +88,7 @@ services:
       - "8080:8080"
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/utility/actuator/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/utility/actuator/health" ]
       interval: 10s
       timeout: 5s
       retries: 3
->>>>>>> main

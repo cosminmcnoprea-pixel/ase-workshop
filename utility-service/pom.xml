@@ -20,10 +20,6 @@
     
     <properties>
         <java.version>17</java.version>
-<<<<<<< HEAD
-        <spring-cloud.version>2023.0.1</spring-cloud.version>
-=======
->>>>>>> main
     </properties>
     
     <dependencies>
@@ -40,14 +36,11 @@
         
         <dependency>
             <groupId>org.springframework.boot</groupId>
-<<<<<<< HEAD
-=======
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
         
         <dependency>
             <groupId>org.springframework.boot</groupId>
->>>>>>> main
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
         
@@ -68,8 +61,6 @@
             <scope>runtime</scope>
         </dependency>
         
-<<<<<<< HEAD
-=======
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -77,7 +68,6 @@
             <scope>provided</scope>
         </dependency>
         
->>>>>>> main
         <!-- Email -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -116,8 +106,6 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
-<<<<<<< HEAD
-=======
             
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -133,7 +121,6 @@
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
->>>>>>> main
         </plugins>
     </build>
 </project>
