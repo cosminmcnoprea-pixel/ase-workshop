@@ -1,4 +1,24 @@
 services:
+  task-service:
+    build: ./task-service
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  notification-service:
+    build: ./notification-service
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   postgres:
     image: postgres:16-alpine
     environment:
@@ -35,38 +55,12 @@ services:
       timeout: 5s
       retries: 3
 
-  task-service:
-    build: ./task-service
-    ports:
-      - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql://taskuser:taskpass@postgres:5432/taskdb
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  notification-service:
-    build: ./notification-service
-    ports:
-      - "3001:3001"
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
   frontend:
     build:
       context: ./frontend
       args:
         VITE_TASK_API_URL: http://localhost:8000
         VITE_NOTIFICATION_API_URL: http://localhost:3001
-        VITE_AUTH_API_URL: http://localhost:4001
     ports:
       - "3000:80"
     depends_on:
@@ -74,8 +68,3 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_healthy
-      auth-service:
-        condition: service_healthy
-
-volumes:
-  postgres_data:
