@@ -41,7 +41,7 @@ jobs:
         run: python -m py_compile main.py
 
       - name: Run tests
-        run: pytest tests/ -v
+        run: PYTHONPATH=. pytest tests/ -v
 
   build-and-deploy:
     needs: test
