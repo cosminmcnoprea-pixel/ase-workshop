@@ -3,7 +3,7 @@ name: Notification Service CI/CD
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feature/postgresql-integration-with-edit]
     paths:
       - 'notification-service/**'
   pull_request:

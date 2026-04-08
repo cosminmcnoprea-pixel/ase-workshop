@@ -3,7 +3,7 @@ name: Frontend CI/CD
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feature/postgresql-integration-with-edit]
     paths:
       - 'frontend/**'
   pull_request:
