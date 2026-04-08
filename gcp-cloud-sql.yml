@@ -1,0 +1,61 @@
+# GCP Cloud SQL Configuration for DevTask Hub
+# This file contains all necessary configurations for deploying PostgreSQL to GCP Cloud SQL
+
+# Cloud SQL Instance Configuration
+cloudsql:
+  instance:
+    name: "devtaskhub-db"
+    database_version: "POSTGRES_15"
+    tier: "db-custom-4-16384"  # 4 vCPUs, 16GB RAM
+    region: "us-central1"
+    storage_size: "20GB"
+    storage_type: "SSD"
+    backup_start_time: "02:00"
+    deletion_protection: false
+    
+  database:
+    name: "devtaskhub"
+    charset: "UTF8"
+    
+  user:
+    name: "postgres"
+    password: "postgres"  # În produc folose secrets
+    
+  networking:
+    authorized_networks:
+      - "0.0.0.0/0"  # Pentru development - în produc restricionezi
+
+# Cloud Run Services Configuration
+services:
+  task-service:
+    image: "gcr.io/PROJECT_ID/task-service"
+    region: "us-central1"
+    environment_variables:
+      DATABASE_URL: "postgresql://postgres:postgres@10.0.0.5:5432/devtaskhub"
+    depends_on:
+      - cloud-sql-proxy
+      
+  notification-service:
+    image: "gcr.io/PROJECT_ID/notification-service"
+    region: "us-central1"
+    environment_variables:
+      DATABASE_URL: "postgresql://postgres:postgres@10.0.0.5:5432/devtaskhub"
+    depends_on:
+      - cloud-sql-proxy
+      
+  frontend:
+    image: "gcr.io/PROJECT_ID/frontend"
+    region: "us-central1"
+    environment_variables:
+      VITE_TASK_API_URL: "https://task-service-URL.a.run.app"
+      VITE_NOTIFICATION_API_URL: "https://notification-service-URL.a.run.app"
+
+# Cloud SQL Proxy Configuration
+cloud-sql-proxy:
+  image: "gcr.io/cloudsql-docker/gce-proxy:1.33.2"
+  command:
+    - "/cloud_sql_proxy"
+    - "-instances=PROJECT_ID:us-central1:devtaskhub-db=tcp:5432"
+    - "-credential_file=/config/service-account.json"
+  volumes:
+    - "/path/to/service-account.json:/config/service-account.json:ro"
