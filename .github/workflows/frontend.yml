@@ -66,9 +66,13 @@ jobs:
 
       - name: Get backend Cloud Run URLs
         run: |
-          TASK_URL=$(gcloud run services describe task-service --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "http://localhost:8000")
-          NOTIF_URL=$(gcloud run services describe notification-service --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "http://localhost:3001")
-          UTILITY_URL=$(gcloud run services describe utility-service --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "http://localhost:8080/utility")
+          TASK_URL=$(gcloud run services describe task-service --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "")
+          NOTIF_URL=$(gcloud run services describe notification-service --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "")
+          UTILITY_URL=$(gcloud run services describe utility-service --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "")
+          # Append /utility context path for the Spring Boot utility service
+          if [ -n "$UTILITY_URL" ]; then
+            UTILITY_URL="${UTILITY_URL}/utility"
+          fi
           echo "TASK_API_URL=$TASK_URL" >> $GITHUB_ENV
           echo "NOTIF_API_URL=$NOTIF_URL" >> $GITHUB_ENV
           echo "UTILITY_API_URL=$UTILITY_URL" >> $GITHUB_ENV
@@ -76,9 +80,6 @@ jobs:
       - name: Build Docker image
         run: |
           docker build \
-            --build-arg VITE_TASK_API_URL=${{ env.TASK_API_URL }} \
-            --build-arg VITE_NOTIFICATION_API_URL=${{ env.NOTIF_API_URL }} \
-            --build-arg VITE_UTILITY_API_URL=${{ env.UTILITY_API_URL }} \
             -t ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
             -t ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:latest \
             ./frontend
@@ -95,3 +96,7 @@ jobs:
           region: ${{ env.GCP_REGION }}
           image: ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
           flags: --allow-unauthenticated --port=80
+          env_vars: |
+            VITE_TASK_API_URL=${{ env.TASK_API_URL }}
+            VITE_NOTIFICATION_API_URL=${{ env.NOTIF_API_URL }}
+            VITE_UTILITY_API_URL=${{ env.UTILITY_API_URL }}

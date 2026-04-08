@@ -82,3 +82,5 @@ jobs:
           region: ${{ env.GCP_REGION }}
           image: ${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
           flags: --allow-unauthenticated --port=3001
+          env_vars: |
+            DATABASE_URL=postgresql://postgres:postgres@10.0.0.5:5432/devtaskhub

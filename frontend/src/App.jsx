@@ -2,9 +2,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "./ThemeContext.jsx";
 
-const TASK_API = import.meta.env.VITE_TASK_API_URL || "http://localhost:8000";
-const NOTIF_API = import.meta.env.VITE_NOTIFICATION_API_URL || "http://localhost:3001";
-const UTILITY_API = import.meta.env.VITE_UTILITY_API_URL || "http://localhost:8080/utility";
+const __RC = window.__RUNTIME_CONFIG__ || {};
+const TASK_API = __RC.TASK_API_URL || import.meta.env.VITE_TASK_API_URL || "http://localhost:8000";
+const NOTIF_API = __RC.NOTIFICATION_API_URL || import.meta.env.VITE_NOTIFICATION_API_URL || "http://localhost:3001";
+const UTILITY_API = __RC.UTILITY_API_URL || import.meta.env.VITE_UTILITY_API_URL || "http://localhost:8080/utility";
 
 const PRIORITY_COLORS = { low: "#22c55e", medium: "#f59e0b", high: "#ef4444" };
 const STATUS_FLOW = { todo: "in-progress", "in-progress": "done", done: "todo" };
