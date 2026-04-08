@@ -1,0 +1,6 @@
+/home/victor/ase-workshop/scheduler-service/src/main/java/com/scheduler/service/NotificationService.java
+/home/victor/ase-workshop/scheduler-service/src/main/java/com/scheduler/scheduler/TaskReminderScheduler.java
+/home/victor/ase-workshop/scheduler-service/src/main/java/com/scheduler/scheduler/CleanupScheduler.java
+/home/victor/ase-workshop/scheduler-service/src/main/java/com/scheduler/controller/HealthController.java
+/home/victor/ase-workshop/scheduler-service/src/main/java/com/scheduler/SchedulerServiceApplication.java
+/home/victor/ase-workshop/scheduler-service/src/main/java/com/scheduler/service/TaskService.java

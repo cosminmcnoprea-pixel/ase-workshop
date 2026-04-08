@@ -45,6 +45,21 @@ services:
       timeout: 5s
       retries: 3
 
+  scheduler-service:
+    build: ./scheduler-service
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8002/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      task-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+
   frontend:
     build:
       context: ./frontend
